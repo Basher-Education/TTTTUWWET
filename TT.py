@@ -1,5 +1,12 @@
 try:
     import cv2
+    print("OpenCV imported successfully.")
+except Exception as e:
+    print("Warning: OpenCV not installed. To use motion detection, make sure you've properly configured OpenCV.")
+
+
+try:
+    import cv2
 except Exception as e:
     print("Warning: OpenCV not installed. To use motion detection, make sure you've properly configured OpenCV.")
 
