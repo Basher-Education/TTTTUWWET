@@ -221,7 +221,3 @@ class Turret:
     def __turn_off_motors(self):
         motor_x.set_enable(False)
         motor_y.set_enable(False)
-
-
-
-
