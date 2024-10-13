@@ -4,7 +4,9 @@ import atexit
 import sys
 import termios
 import contextlib
+import os
 
+# Import necessary libraries, with debug prints to track each step
 try:
     import cv2
     print("OpenCV imported successfully.")
@@ -17,8 +19,7 @@ try:
     print("imutils imported successfully.")
 except ImportError:
     print("Installing imutils library...")
-    import os
-    os.system("pip3 install imutils")
+    os.system("pip3 install imutils --user")
 
 try:
     import RPi.GPIO as GPIO
@@ -32,7 +33,7 @@ try:
     print("Adafruit Motor HAT library imported.")
 except ImportError:
     print("Adafruit Motor HAT library not found. Installing...")
-    os.system("pip3 install git+https://github.com/adafruit/Adafruit-Motor-HAT-Python-Library")
+    os.system("pip3 install git+https://github.com/adafruit/Adafruit-Motor-HAT-Python-Library --user")
     from Adafruit_MotorHAT import Adafruit_MotorHAT, Adafruit_DCMotor, Adafruit_StepperMotor
 
 # Set up GPIO cleanup at exit
@@ -143,18 +144,34 @@ class VideoUtils:
 
 class Turret:
     def __init__(self, friendly_mode=True):
+        print("Initializing Turret...")
         self.friendly_mode = friendly_mode
-        self.mh = Adafruit_MotorHAT()
+        try:
+            self.mh = Adafruit_MotorHAT()
+            print("Adafruit Motor HAT initialized.")
+        except Exception as e:
+            print("Error initializing Motor HAT:", e)
+
         atexit.register(self.__turn_off_motors)
-        self.sm_x = self.mh.getStepper(200, 1)
-        self.sm_x.setSpeed(5)
-        self.current_x_steps = 0
-        self.sm_y = self.mh.getStepper(200, 2)
-        self.sm_y.setSpeed(5)
-        self.current_y_steps = 0
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(RELAY_PIN, GPIO.OUT)
-        GPIO.output(RELAY_PIN, GPIO.LOW)
+        
+        try:
+            self.sm_x = self.mh.getStepper(200, 1)
+            self.sm_x.setSpeed(5)
+            self.current_x_steps = 0
+            self.sm_y = self.mh.getStepper(200, 2)
+            self.sm_y.setSpeed(5)
+            self.current_y_steps = 0
+            print("Stepper motors initialized.")
+        except Exception as e:
+            print("Error initializing stepper motors:", e)
+
+        try:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(RELAY_PIN, GPIO.OUT)
+            GPIO.output(RELAY_PIN, GPIO.LOW)
+            print("GPIO initialized for relay on pin", RELAY_PIN)
+        except Exception as e:
+            print("Error initializing GPIO:", e)
 
     def calibrate(self):
         print("Please calibrate the tilt of the gun so that it is level. Commands: (w) moves up, (s) moves down. Press (enter) to finish.\n")
@@ -220,4 +237,5 @@ class Turret:
     def __turn_off_motors(self):
         for i in range(1, 5):
             self.mh.getMotor(i).run(Adafruit_MotorHAT.RELEASE)
+
 
