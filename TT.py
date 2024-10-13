@@ -5,6 +5,7 @@ import sys
 import termios
 import contextlib
 import os
+from DRV8825 import DRV8825  # Import the correct driver for WAVESHARE
 
 # Import necessary libraries, with debug prints to track each step
 try:
@@ -27,15 +28,6 @@ try:
 except ImportError as e:
     print("Warning: RPi.GPIO library not found:", e)
 
-# Try importing Adafruit Motor HAT and install if needed
-try:
-    from Adafruit_MotorHAT import Adafruit_MotorHAT, Adafruit_DCMotor, Adafruit_StepperMotor
-    print("Adafruit Motor HAT library imported.")
-except ImportError:
-    print("Adafruit Motor HAT library not found. Installing...")
-    os.system("pip3 install git+https://github.com/adafruit/Adafruit-Motor-HAT-Python-Library --user")
-    from Adafruit_MotorHAT import Adafruit_MotorHAT, Adafruit_DCMotor, Adafruit_StepperMotor
-
 # Set up GPIO cleanup at exit
 atexit.register(GPIO.cleanup)
 
@@ -45,6 +37,23 @@ MOTOR_Y_REVERSED = False
 MAX_STEPS_X = 30
 MAX_STEPS_Y = 15
 RELAY_PIN = 22
+
+# Define motor GPIO pins
+DIR_PIN_X = 20  # Replace with your actual GPIO pin numbers
+STEP_PIN_X = 21
+ENABLE_PIN_X = 16
+
+DIR_PIN_Y = 19
+STEP_PIN_Y = 26
+ENABLE_PIN_Y = 13
+
+# Initialize the motors using the DRV8825 class
+motor_x = DRV8825(dir_pin=DIR_PIN_X, step_pin=STEP_PIN_X, enable_pin=ENABLE_PIN_X)
+motor_y = DRV8825(dir_pin=DIR_PIN_Y, step_pin=STEP_PIN_Y, enable_pin=ENABLE_PIN_Y)
+
+# Enable motors
+motor_x.set_enable(True)
+motor_y.set_enable(True)
 
 @contextlib.contextmanager
 def raw_mode(file):
@@ -57,6 +66,18 @@ def raw_mode(file):
     finally:
         termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
 
+# Movement methods
+def move_forward(motor, steps, delay=0.001):
+    motor.set_direction(True)
+    for _ in range(steps):
+        motor.step()
+        time.sleep(delay)
+
+def move_backward(motor, steps, delay=0.001):
+    motor.set_direction(False)
+    for _ in range(steps):
+        motor.step()
+        time.sleep(delay)
 
 class VideoUtils:
     @staticmethod
@@ -141,29 +162,12 @@ class VideoUtils:
                 best_cnt = cnt
         return best_cnt
 
-
 class Turret:
     def __init__(self, friendly_mode=True):
         print("Initializing Turret...")
         self.friendly_mode = friendly_mode
-        try:
-            self.mh = Adafruit_MotorHAT()
-            print("Adafruit Motor HAT initialized.")
-        except Exception as e:
-            print("Error initializing Motor HAT:", e)
-
-        atexit.register(self.__turn_off_motors)
-        
-        try:
-            self.sm_x = self.mh.getStepper(200, 1)
-            self.sm_x.setSpeed(5)
-            self.current_x_steps = 0
-            self.sm_y = self.mh.getStepper(200, 2)
-            self.sm_y.setSpeed(5)
-            self.current_y_steps = 0
-            print("Stepper motors initialized.")
-        except Exception as e:
-            print("Error initializing stepper motors:", e)
+        self.current_x_steps = 0
+        self.current_y_steps = 0
 
         try:
             GPIO.setmode(GPIO.BCM)
@@ -188,15 +192,9 @@ class Turret:
                     if not ch:
                         break
                     elif ch == "a":
-                        if MOTOR_X_REVERSED:
-                            Turret.move_backward(self.sm_x, 5)
-                        else:
-                            Turret.move_forward(self.sm_x, 5)
+                        move_backward(motor_x, 5)
                     elif ch == "d":
-                        if MOTOR_X_REVERSED:
-                            Turret.move_forward(self.sm_x, 5)
-                        else:
-                            Turret.move_backward(self.sm_x, 5)
+                        move_forward(motor_x, 5)
                     elif ch == "\n":
                         break
             except (KeyboardInterrupt, EOFError):
@@ -211,32 +209,19 @@ class Turret:
                     if not ch:
                         break
                     elif ch == "w":
-                        if MOTOR_Y_REVERSED:
-                            Turret.move_forward(self.sm_y, 5)
-                        else:
-                            Turret.move_backward(self.sm_y, 5)
+                        move_forward(motor_y, 5)
                     elif ch == "s":
-                        if MOTOR_Y_REVERSED:
-                            Turret.move_backward(self.sm_y, 5)
-                        else:
-                            Turret.move_forward(self.sm_y, 5)
+                        move_backward(motor_y, 5)
                     elif ch == "\n":
                         break
             except (KeyboardInterrupt, EOFError):
                 print("Error: Unable to calibrate turret. Exiting...")
                 sys.exit(1)
 
-    @staticmethod
-    def move_forward(motor, steps):
-        motor.step(steps, Adafruit_MotorHAT.FORWARD, Adafruit_MotorHAT.INTERLEAVE)
-
-    @staticmethod
-    def move_backward(motor, steps):
-        motor.step(steps, Adafruit_MotorHAT.BACKWARD, Adafruit_MotorHAT.INTERLEAVE)
-
     def __turn_off_motors(self):
-        for i in range(1, 5):
-            self.mh.getMotor(i).run(Adafruit_MotorHAT.RELEASE)
+        motor_x.set_enable(False)
+        motor_y.set_enable(False)
+
 
 
 
